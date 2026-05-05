@@ -112,11 +112,6 @@ BigInt rhoPollard(const BigInt& n) {
 		y = f(f(y, n, c), n, c);
 		BigInt diff = (x > y) ? (x - y) : (y - x);
 		d = BigInt::gcd(diff, n);
-		// Step 4
-		if (d > BigInt(1) && d > n) {
-			cout << "Found non-trivial factor: " << d.toDecimalString() << endl;
-			return d;
-		}
 		// Step 3
 		if (x == y) {
 			cout << "x = y with c = " << c.toDecimalString() << "." << endl;
@@ -125,8 +120,13 @@ BigInt rhoPollard(const BigInt& n) {
 			y = BigInt(2);
 			d = BigInt(1);
 			if (c > BigInt(100)) {
-				cout << "Rho-Pollard failed to find a factor" << endl;
+				cout << "Rho-Pollard failed to find a factor (cycle detected)" << endl;
 			}
+		}
+		// Step 4
+		if (d != BigInt(1)) {
+			cout << "Found non-trivial factor: " << d.toDecimalString() << endl;
+			return d;
 		}
 	}
 }

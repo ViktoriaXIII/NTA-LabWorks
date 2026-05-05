@@ -81,6 +81,10 @@ public:
         return digits == other.digits;
     }
 
+    bool operator!=(const BigInt& other) const {
+        return !(*this == other);
+    }
+
     bool operator>(const BigInt& other) const {
         if (digits.size() != other.digits.size()) {
             return digits.size() > other.digits.size();
