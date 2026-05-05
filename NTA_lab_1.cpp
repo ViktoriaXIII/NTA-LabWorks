@@ -98,7 +98,38 @@ void trialDiv(BigInt n) {
 	if (temp > BigInt(1)) cout << "Remaining unfactored part: " << temp.toDecimalString() << endl;
 }
 
-
+BigInt rhoPollard(const BigInt& n) {
+	if (n % BigInt(2) == BigInt(0)) return BigInt(2);
+	// Step 1
+	BigInt x(2), y(2), d(1), c(1);
+	// f(x) = (x^2 + c) mod n;
+	auto f = [&](const BigInt& val, const BigInt& mod, const BigInt c) {
+		return (val.mulMod(val, mod) + c) % mod;
+		};
+	while (true) {
+		// Step 2
+		x = f(x, n, c);
+		y = f(f(y, n, c), n, c);
+		BigInt diff = (x > y) ? (x - y) : (y - x);
+		d = BigInt::gcd(diff, n);
+		// Step 4
+		if (d > BigInt(1) && d > n) {
+			cout << "Found non-trivial factor: " << d.toDecimalString() << endl;
+			return d;
+		}
+		// Step 3
+		if (x == y) {
+			cout << "x = y with c = " << c.toDecimalString() << "." << endl;
+			c = c + BigInt(1);
+			x = BigInt(2);
+			y = BigInt(2);
+			d = BigInt(1);
+			if (c > BigInt(100)) {
+				cout << "Rho-Pollard failed to find a factor" << endl;
+			}
+		}
+	}
+}
 
 int main()
 {
