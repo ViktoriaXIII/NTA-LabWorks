@@ -440,6 +440,17 @@ public:
         return res;
     }
 
+    BigInt sqrt() const {
+        if (*this <= BigInt(1)) return *this;
+        BigInt x = *this / BigInt(2);
+        BigInt y = (x + *this / x) / BigInt(2);
+        while (y < x) {
+            x = y;
+            y = (x + *this / x) / BigInt(2);
+        }
+        return x;
+    }
+
     void fromHexString(string hexStr) {
         digits.clear();
         for (int i = (int)hexStr.length(); i > 0; i -= 8) {
