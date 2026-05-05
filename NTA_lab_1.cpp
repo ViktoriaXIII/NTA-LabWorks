@@ -54,6 +54,52 @@ bool MillerRabin(BigInt p, int k = 10) {
 	return true;
 }
 
+bool Pascal(const BigInt& n, uint32_t m) {
+	if (m == 0) return false;
+	if (m == 1) return true;
+	uint64_t sum = 0;
+	uint64_t r_i = 1; // r_0 = 1
+	uint64_t B_mod_m = 0x100000000ULL % m;
+	for (size_t i = 0; i < n.getDigitsCount(); i++) {
+		uint64_t a_i = n.getDigit(i);
+		// n = sum(a_i * r_i (mod m))
+		uint64_t term = (a_i % m * r_i) % m;
+		sum = (sum + term) % m;
+		// r_{i + 1} = (r_i * B) mod m
+		r_i = (r_i * B_mod_m) % m;
+	}
+	return static_cast<uint32_t>(sum);
+}
+
+void trialDiv(BigInt n) {
+	BigInt temp = n;
+	vector<uint32_t> factors;
+	while (temp > BigInt(1) && (temp.getDigit(0) % 2 == 0)) {
+		factors.push_back(2);
+		temp = temp / BigInt(2);
+	}
+	uint32_t limit = 100000;
+	for (uint32_t m = 3; m <= limit; m += 2) {
+		if (Pascal(temp, m) == 0) {
+			BigInt divisor(m);
+			while (temp > BigInt(1) && (temp % divisor == BigInt(0))) {
+				factors.push_back(m);
+				temp = temp / divisor;
+			}
+		}
+		if (temp == BigInt(1)) break;
+	}
+	if (factors.empty()) cout << "No factors found by Trial Division up to " << limit << endl;
+	else {
+		cout << "Prime factors found: ";
+		for (size_t i = 0; i < factors.size(); i++) cout << factors[i] << (i == factors.size() - 1 ? "" : " * ");
+		cout << endl;
+	}
+	if (temp > BigInt(1)) cout << "Remaining unfactored part: " << temp.toDecimalString() << endl;
+}
+
+
+
 int main()
 {
 }

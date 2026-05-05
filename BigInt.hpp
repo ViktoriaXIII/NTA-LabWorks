@@ -64,6 +64,13 @@ public:
         digits.clear();
         digits.push_back(n);
     }
+    size_t getDigitsCount() const {
+        return digits.size();
+    }
+    uint32_t getDigit(size_t i) const {
+        if (i >= digits.size()) return 0;
+        return digits[i];
+    }
     BigInt& operator=(uint32_t n) {
         digits.clear();
         digits.push_back(n);
