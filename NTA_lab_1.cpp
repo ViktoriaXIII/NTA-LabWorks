@@ -1,5 +1,8 @@
 #include "BigInt.hpp"
+#include <map>
+#include <ctime>
 using namespace std;
+using namespace std::chrono;
 
 bool MillerRabin(BigInt p, int k = 10) {
 	if (p == BigInt(2) || p == BigInt(3)) return true;
@@ -54,7 +57,7 @@ bool MillerRabin(BigInt p, int k = 10) {
 	return true;
 }
 
-bool Pascal(const BigInt& n, uint32_t m) {
+uint32_t Pascal(const BigInt& n, uint32_t m) {
 	if (m == 0) return false;
 	if (m == 1) return true;
 	uint64_t sum = 0;
@@ -114,18 +117,20 @@ BigInt rhoPollard(const BigInt& n) {
 		d = BigInt::gcd(diff, n);
 		// Step 3
 		if (x == y) {
-			cout << "x = y with c = " << c.toDecimalString() << "." << endl;
+			// Колізія
+			//cout << "x = y with c = " << c.toDecimalString() << "." << endl;
 			c = c + BigInt(1);
 			x = BigInt(2);
 			y = BigInt(2);
 			d = BigInt(1);
 			if (c > BigInt(100)) {
 				cout << "Rho-Pollard failed to find a factor (cycle detected)" << endl;
+				return BigInt(1);
 			}
 		}
 		// Step 4
 		if (d != BigInt(1)) {
-			cout << "Found non-trivial factor: " << d.toDecimalString() << endl;
+			//cout << "Found non-trivial factor: " << d.toDecimalString() << endl;
 			return d;
 		}
 	}
@@ -174,11 +179,31 @@ vector<int> factorBase(const BigInt& n) {
 	return base;
 }
 
-bool tryFactorize(BigInt val, const vector<int>& base, vector<int>& degrees) {
+vector<int> factorBaseAuto(const BigInt& n, size_t target_size = 12) {
+	vector<int> base = { -1 };
+	vector<int> primes = { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+		73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173,
+		179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281,
+		283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409,
+		419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541 };
+	for (int p : primes) {
+		if (base.size() >= target_size) break;
+		BigInt bp(p);
+		if (Legendre(n, bp) == 1) {
+			base.push_back(p);
+		}
+	}
+	return base;
+}
+
+bool tryFactorize(BigInt val, bool is_negative, const vector<int>& base, vector<int>& degrees) {
 	degrees.assign(base.size(), 0);
-	if (val < BigInt(0)) {
+	/*if (val < BigInt(0)) {
 		degrees[0] = 1;
 		val = val * BigInt(-1);
+	}*/
+	if (is_negative) {
+		degrees[0] = 1;
 	}
 	for (size_t i = 1; i < base.size(); i++) {
 		BigInt p(base[i]);
@@ -195,7 +220,7 @@ bool zeroVector(const vector<int>& degrees) {
 	return true;
 }
 
-void solution(const BigInt& n, const vector<BigInt>& selected_b, const vector<vector<int>>& selected_degrees, const vector<int>& base) {
+BigInt solution(const BigInt& n, const vector<BigInt>& selected_b, const vector<vector<int>>& selected_degrees, const vector<int>& base) {
 	BigInt X(1);
 	for (const auto& b : selected_b) X = (X * b) % n;
 	vector<int> total_degrees(base.size(), 0);
@@ -212,11 +237,17 @@ void solution(const BigInt& n, const vector<BigInt>& selected_b, const vector<ve
 	}
 	BigInt Y_neg = n - Y;
 	if (X % n != Y % n && X % n != Y_neg % n) {
-		BigInt d = BigInt::gcd(X - Y, n);
-		if (d > BigInt(1) && d < n) cout << "Divisor found: " << d.toDecimalString() << endl;
+		//BigInt d = BigInt::gcd(X - Y, n);
+		BigInt diff = (X > Y) ? (X - Y) : (Y - X);
+		BigInt d = BigInt::gcd(diff, n);
+		if (d > BigInt(1) && d < n) {
+			cout << "Divisor found: " << d.toDecimalString() << endl;
+			return d;
+		}
 		else cout << "A trivial divisor was found" << endl;
 	}
 	else cout << "X = +-Y (mod n). Looking for another solution" << endl;
+	return BigInt(1);
 }
 
 vector<vector<int>> buildGF2Matrix(const vector<vector<int>>& degree_vectors) {
@@ -264,7 +295,7 @@ vector<vector<int>> solveGaussianGF2(vector<vector<int>> matrix) {
 	return solutions;
 }
 
-void factorsFromSystem(const BigInt& n, const vector<BigInt>& b_values, const vector<vector<int>>& degree_vectors, const vector<int>& base) {
+BigInt factorsFromSystem(const BigInt& n, const vector<BigInt>& b_values, const vector<vector<int>>& degree_vectors, const vector<int>& base) {
 	vector<vector<int>> matrix = buildGF2Matrix(degree_vectors);
 	vector<vector<int>> solutions = solveGaussianGF2(matrix);
 	cout << "Found " << solutions.size() << " potential combinations" << endl;
@@ -277,13 +308,16 @@ void factorsFromSystem(const BigInt& n, const vector<BigInt>& b_values, const ve
 				selected_degrees.push_back(degree_vectors[i]);
 			}
 		}
-		solution(n, selected_b, selected_degrees, base);
+		BigInt d = solution(n, selected_b, selected_degrees, base);
+		if (d > BigInt(1) && d < n) return d;
 	}
+	return BigInt(1);
 }
 
-void BrillhartMorrison(const BigInt& n) {
+BigInt BrillhartMorrison(const BigInt& n) {
 	// Step 1
-	vector<int> base = factorBase(n);
+	//vector<int> base = factorBase(n);
+	vector<int> base = factorBaseAuto(n, 50);
 	size_t k = base.size();
 	vector<BigInt> b_values;
 	vector<vector<int>> degree_vectors;
@@ -296,20 +330,23 @@ void BrillhartMorrison(const BigInt& n) {
 	while (degree_vectors.size() < k + 1) {
 		BigInt b_current = (a * b_prev1 + b_prev2) % n;
 		BigInt a_val = (b_current * b_current) % n;
-		if (a_val > n / BigInt(2)) a_val = a_val - n;
+		bool is_negative = false;
+		if (a_val > n / BigInt(2)) {
+			a_val = n - a_val;
+			is_negative = true;
+		}
 		// Step 3
 		vector<int> degrees;
-		if (tryFactorize(a_val, base, degrees)) {
+		if (tryFactorize(a_val, is_negative, base, degrees)) {
 			if (zeroVector(degrees)) {
 				// Step 4 and 5
-				solution(n, { b_current }, { degrees }, base);
-				return;
+				return solution(n, { b_current }, { degrees }, base);
 			}
 			b_values.push_back(b_current);
 			degree_vectors.push_back(degrees);
 			cout << "Found B-smooth number #" << degree_vectors.size() << endl;
 		}
-		BigInt v_next = (n - u * v) / v;
+		BigInt v_next = (n - u * u) / v;
 		BigInt a_next = (n.sqrt() + u) / v_next;
 		BigInt u_next = a_next * v_next - u;
 		b_prev2 = b_prev1;
@@ -318,9 +355,120 @@ void BrillhartMorrison(const BigInt& n) {
 		u = u_next;
 		a = a_next;
 	}
-	factorsFromSystem(n, b_values, degree_vectors, base);
+	return factorsFromSystem(n, b_values, degree_vectors, base);
 }
 
-int main()
-{
+string timeStamp() {
+	auto now = system_clock::now();
+	auto time = system_clock::to_time_t(now);
+	struct tm buf;
+#ifdef _WIN32
+	localtime_s(&buf, &time);
+#else
+	localtime_r(&time, &buf);
+#endif
+	char str[10];
+	strftime(str, sizeof(str), "%H:%M:%S", &buf);
+	return string(str);
+}
+
+void findCannonicalFactorization(BigInt n, map<BigInt, int>& result) {
+	auto startTime = high_resolution_clock::now();
+	cout << "START: " << timeStamp() << endl;
+	auto newFactor = [&](BigInt d, string method) {
+		cout << "New factor: " << setw(10) << d.toDecimalString() << " | Metod: " << setw(20) << method << " | Time: " << timeStamp() << endl;
+		result[d]++;
+		};
+	while (n > BigInt(1)) {
+		// 1. Miller-Rabin Test
+		if (MillerRabin(n, 10)) {
+			newFactor(n, "Miller-Rabin Test");
+			break;
+		}
+		// 2. Trial Division
+		bool foundTrialFactor = false;
+		vector<int> smallPrimes = { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47 };
+		for (int p : smallPrimes) {
+			BigInt sp(p);
+			if (n % sp == BigInt(0)) {
+				newFactor(sp, "Trial Division");
+				n = n / sp;
+				foundTrialFactor = true;
+				break;
+			}
+		}
+		if (foundTrialFactor) continue;
+		// 3. Pollard's Rho-method
+		BigInt d_rho = rhoPollard(n);
+		if (d_rho > BigInt(1) && d_rho < n) {
+			if (MillerRabin(d_rho, 10)) newFactor(d_rho, "Pollard's Rho-method");
+			else findCannonicalFactorization(d_rho, result);
+			n = n / d_rho;
+			continue;
+		}
+		// 4. Brillhart-Morrison method
+		BigInt d_bm = BrillhartMorrison(n);
+		if (d_bm > BigInt(1) && d_bm < n) {
+			if (MillerRabin(d_bm, 10)) newFactor(d_bm, "Brillhart-Morrison method");
+			else findCannonicalFactorization(d_bm, result);
+			n = n / d_bm;
+			continue;
+		}
+		else {
+			cout << "\n I cannot find canonical number form : (" << endl;
+			break;
+		}
+	}
+	auto endTime = high_resolution_clock::now();
+	cout << "END: " << timeStamp() << endl;
+}
+
+void printAsCanonical(const map<BigInt, int>& result) {
+	cout << "\nCanonical form: ";
+	for (auto it = result.begin(); it != result.end(); it++) {
+		cout << it->first.toDecimalString() << (it->second > 1 ? "^" + to_string(it->second) : "");
+		if (next(it) != result.end()) cout << " * ";
+	}
+	cout << endl;
+}
+
+int main() {
+	BigInt n;
+	n.fromDecimalString("2500744714570633849");
+	map<BigInt, int> results;
+	cout << "Factorization of the: " << n.toDecimalString() << endl;
+	findCannonicalFactorization(n, results);
+	printAsCanonical(results);
+	vector<string> numbers = {
+		"3009182572376191",
+		"1021514194991569",
+		"4000852962116741",
+		"15196946347083",
+		"499664789704823",
+		"269322119833303",
+		"679321846483919",
+		"96267366284849",
+		"61333127792637",
+		"2485021628404193"
+	};
+	cout << "~~~ Comparison of the Pollard's Rho method and Brillhart-Morrison's method ~~~" << endl;
+	for (size_t i = 0; i < numbers.size(); ++i) {
+		BigInt x;
+		x.fromDecimalString(numbers[i]);
+		cout << "Number #" << i + 1 << ": " << numbers[i] << "\n";
+		cout << "Pollard's Rho method ... " << endl;
+		auto start_rho = high_resolution_clock::now();
+		BigInt divisor_rho = rhoPollard(x);
+		auto end_rho = high_resolution_clock::now();
+		auto time_rho = duration_cast<microseconds>(end_rho - start_rho).count();
+		cout << "  > found factor: " << divisor_rho.toDecimalString() << "\n";
+		cout << "  > time: " << time_rho << " mcs (" << time_rho / 1000.0 << " ms)\n\n";
+		cout << "Brillhart-Morrison method ... " << endl;
+		auto start_bm = high_resolution_clock::now();
+		BigInt divisor_bm = BrillhartMorrison(x);
+		auto end_bm = high_resolution_clock::now();
+		auto time_bm = duration_cast<microseconds>(end_bm - start_bm).count();
+		cout << "  > found factor: " << divisor_bm.toDecimalString() << "\n";
+		cout << "  > time: " << time_bm << " mcs (" << time_bm / 1000.0 << " ms)\n\n";
+	}
 }
