@@ -24,6 +24,73 @@ BigInt direct_discretelog(const BigInt& a, const BigInt& b, const BigInt& p, int
     return -1;
 }
 
+// p-1 = q_1^e_1 * q_2^e_2 * ... * q_n^e_n
+// Struct for q_i^e_i
+struct PrimeFactor {
+    BigInt q;
+    size_t e;
+    BigInt q_e;
+};
+
+BigInt discretelog_SPH(const BigInt& a, const BigInt& b, const BigInt& p, const vector<PrimeFactor>& factors) {
+    BigInt zero, one;
+    zero.fromDecimalString("0");
+    one.fromDecimalString("1");
+    BigInt group_order = p - one;
+    vector<BigInt> remainders;
+    vector<BigInt> moduli;
+    for (const auto& factor : factors) {
+        BigInt x_val = zero; // = X_prev
+        BigInt current_q_power = one;
+        // gamma = a^(group_order / q) mod p
+        BigInt gamma_exp = group_order / factor.q;
+        BigInt gamma = a.GorMod(gamma_exp, p);
+        for (size_t l = 0; l < factor.e; ++l) {
+            BigInt exp_denominator = current_q_power * factor.q;
+            // exp = n / q_i^l
+            BigInt current_exp = group_order / exp_denominator;
+            // (beta * alpha^(-x_0 - ... - x_(k-1)q_i^(k-1)))^q_i^(n/(k+1))$
+            // g = a^exp mod p
+            BigInt g = a.GorMod(current_exp, p);
+            BigInt g_order = current_q_power * factor.q;
+            // g^(-1) = g^(O-1) mod p
+            BigInt g_inv = g.GorMod(g_order - one, p);
+            // alpha^exp^(-X_prev) mod p
+            BigInt correction = g_inv.GorMod(x_val, p);
+            // beta_scaled = beta^exp mod p
+            BigInt b_scaled = b.GorMod(current_exp, p);
+            // delta = (beta * alpha^(-X_prev))^exp mod p
+            BigInt delta = (b_scaled * correction) % p;
+            // Searching x_l: gamma^x_l = delta mod p
+            BigInt x_l = zero;
+            BigInt gamma_pow = one;
+            while (!(gamma_pow == delta)) {
+                gamma_pow = (gamma_pow * gamma) % p;
+                x_l = x_l + one;
+            }
+            //  y_i = x mod q_i^{l_i}}$
+            x_val = x_val + (x_l * current_q_power);
+            current_q_power = current_q_power * factor.q;
+        }
+        remainders.push_back(x_val);
+        moduli.push_back(factor.q_e);
+    }
+    // CRT
+    BigInt global_x = zero;
+    for (size_t i = 0; i < moduli.size(); ++i) {
+        BigInt M_i = group_order / moduli[i];
+        // phi(q^e) = q^e - q^(e-1)
+        BigInt q_minus_1 = factors[i].q - one;
+        BigInt phi = q_minus_1 * (factors[i].q_e / factors[i].q);
+        // N_i = M_i^(-1) mod moduli[i]
+        BigInt N_i = M_i.GorMod(phi - one, moduli[i]);
+        BigInt term = (remainders[i] * M_i) % group_order;
+        term = (term * N_i) % group_order;
+        global_x = (global_x + term) % group_order;
+    }
+    return global_x;
+}
+
 int main()
 {
     cout << "=== Direct search ===" << endl;
@@ -71,5 +138,29 @@ int main()
     cout << "Runtime: " << elapsed2.count() << " sec." << endl;
     cout << "--------------------------------------------" << endl;
 
+    BigInt a, b, p;
+    a.fromDecimalString("3");
+    b.fromDecimalString("215");
+    p.fromDecimalString("1013");
+    cout << "Test 3: 3^x == 215 (mod 1013)" << endl;
+    // p - 1 = 1012 = 2^2 * 11^1 * 23^1
+    vector<PrimeFactor> factors(3);
+    factors[0].q.fromDecimalString("2");
+    factors[0].e = 2;
+    factors[0].q_e.fromDecimalString("4"); // 2^2
+    factors[1].q.fromDecimalString("11");
+    factors[1].e = 1;
+    factors[1].q_e.fromDecimalString("11"); // 11^1
+    factors[2].q.fromDecimalString("23");
+    factors[2].e = 1;
+    factors[2].q_e.fromDecimalString("23"); // 23^1
+    cout << "SPH..." << endl;
+    auto start_sph = chrono::high_resolution_clock::now();
+    BigInt res_sph = discretelog_SPH(a, b, p, factors);
+    auto end_sph = chrono::high_resolution_clock::now();
+    chrono::duration<double> time_sph = end_sph - start_sph;
+    cout << "x = " << res_sph.toDecimalString() << endl;
+    cout << "Runtime: " << time_sph.count() << " sec." << endl;
+    cout << "--------------------------------------------" << endl;
     return 0;
 }
