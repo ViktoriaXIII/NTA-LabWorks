@@ -1,5 +1,6 @@
 #include <iostream>
 #include "BigInt.hpp"
+#include "CanonForm.hpp"
 #include <chrono>
 using namespace std;
 using namespace chrono;
@@ -93,7 +94,7 @@ BigInt discretelog_SPH(const BigInt& a, const BigInt& b, const BigInt& p, const 
 
 int main()
 {
-    cout << "=== Direct search ===" << endl;
+    /*cout << "=== Direct search ===" << endl;
     BigInt a1, b1, p1;
     a1.fromDecimalString("5");
     b1.fromDecimalString("94512");
@@ -159,6 +160,36 @@ int main()
     BigInt res_sph = discretelog_SPH(a, b, p, factors);
     auto end_sph = chrono::high_resolution_clock::now();
     chrono::duration<double> time_sph = end_sph - start_sph;
+    cout << "x = " << res_sph.toDecimalString() << endl;
+    cout << "Runtime: " << time_sph.count() << " sec." << endl;
+    cout << "--------------------------------------------" << endl;*/
+
+    BigInt a, b, p;
+    a.fromDecimalString("2402221");
+    b.fromDecimalString("3809591");
+    p.fromDecimalString("8582963");
+    cout << "Test SPH" << endl;
+    BigInt one;
+    one.fromDecimalString("1");
+    BigInt group_order = p - one;
+    map<BigInt, int> raw_factors;
+    cout << "Factoring p - 1..." << endl;
+    findCannonicalFactorization(group_order, raw_factors);
+    vector<PrimeFactor> factors;
+    for (const auto& factor : raw_factors) {
+        PrimeFactor pf;
+        pf.q = factor.first;
+        pf.e = factor.second;
+        BigInt exp_bigint;
+        exp_bigint.fromDecimalString(to_string(pf.e));
+        pf.q_e = pf.q.GorMod(exp_bigint, p);
+        factors.push_back(pf);
+    }
+    cout << "SPH..." << endl;
+    auto start_sph = high_resolution_clock::now();
+    BigInt res_sph = discretelog_SPH(a, b, p, factors);
+    auto end_sph = high_resolution_clock::now();
+    duration<double> time_sph = end_sph - start_sph;
     cout << "x = " << res_sph.toDecimalString() << endl;
     cout << "Runtime: " << time_sph.count() << " sec." << endl;
     cout << "--------------------------------------------" << endl;
