@@ -1,11 +1,20 @@
 ﻿#include <iostream>
 #include <vector>
 #include <cmath>
+#include <random>
+#include "BigInt.hpp"
+#include "CanonForm.hpp"
 using namespace std;
 
 struct FactorBase {
     double B;
     vector<int> S;
+};
+
+// k = c_1*log(p_1) + c_2*log(p_2) + ... + c_t*log(p_t) (mod n)
+struct Equation {
+    long long k;
+    vector<int> coefficients;
 };
 
 // Sieve of Eratosthenes
