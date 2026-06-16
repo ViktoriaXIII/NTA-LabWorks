@@ -46,6 +46,18 @@ FactorBase build_factor_base(double n, double c = 3.38) {
     return { B, S };
 }
 
+bool check_smoothness(long long value, const vector<int>& S, vector<int>& coefficients) {
+    coefficients.assign(S.size(), 0);
+    long long temp = value;
+    for (size_t i = 0; i < S.size(); ++i) {
+        while (temp % S[i] == 0) {
+            coefficients[i]++;
+            temp /= S[i];
+        }
+    }
+    return (temp == 1);
+}
+
 int main()
 {
     
