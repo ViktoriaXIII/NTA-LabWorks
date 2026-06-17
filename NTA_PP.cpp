@@ -5,10 +5,20 @@
 #include <random>
 #include <algorithm>
 #include <fstream>
+#include <chrono>
 using namespace std;
+using namespace chrono;
 
 using Vector = vector<double>;
 using Matrix = vector<Vector>;
+
+struct LLLMetrics {
+    Matrix reduced_B;
+    int swap_count = 0;
+    double execution_time_ms = 0.0;
+    double hadamard_coef = 0.0;
+    double first_vector_norm = 0.0;
+};
 
 double c_norm(const Vector& v) {
     double sum = 0.0;
@@ -42,16 +52,16 @@ void basis_mu(int k, const Matrix& B, Matrix& B_star, Matrix& mu) {
     }
 }
 
-Matrix lll_reduction(Matrix B, double delta) {
+LLLMetrics lll_reduction(Matrix B, double delta) {
+    auto start_time = high_resolution_clock::now();
     int m = B.size();
-    if (m == 0) return B;
     int n = B[0].size();
     // Matrix for the b^*-basis
     Matrix B_star(m, Vector(n, 0.0));
     // Matrix for the \mu (m x m)
     Matrix mu(m, Vector(m, 0.0));
-    // 1.Build the basis
     for (int i = 0; i < m; ++i) basis_mu(i, B, B_star, mu);
+    int swap_count = 0;
     // 2.
     int k = 1;
     while (k < m) {
@@ -81,8 +91,23 @@ Matrix lll_reduction(Matrix B, double delta) {
         }
         else k = k + 1;
     }
-
-    return B;
+    auto end_time = high_resolution_clock::now();
+    duration<double, milli> duration = end_time - start_time;
+    // Hadamar's coeficient
+    double prod_b_star_norm = 1.0;
+    double prod_b_norm = 1.0;
+    for (int i = 0; i < m; ++i) {
+        prod_b_star_norm *= c_norm(B_star[i]);
+        prod_b_norm *= c_norm(B[i]);
+    }
+    double hadamard = (prod_b_norm == 0.0) ? 0.0 : (prod_b_star_norm / prod_b_norm);
+    LLLMetrics metrics;
+    metrics.reduced_B = B;
+    metrics.swap_count = swap_count;
+    metrics.execution_time_ms = duration.count();
+    metrics.hadamard_coef = hadamard;
+    metrics.first_vector_norm = c_norm(B[0]);
+    return metrics;
 }
 
 // Gauss method
@@ -135,30 +160,32 @@ int main() {
     const int n = 30;
     const int min_element = -5;
     const int max_element = 5;
-    const double delta = 0.75;
-    ofstream out_file("lll_50_matrixes.txt");
+    vector<double> deltas = { 0.5, 0.75, 0.90, 0.95, 0.99 };
+    ofstream out_file("lll_50_matrixes_measured.txt");
     if (!out_file.is_open()) {
-        cerr << "ERROR!!! Cannot open the file." << std::endl;
+        cerr << "ERROR!!! Cannot open the file." << endl;
         return 1;
     }
-    out_file << "Results for the " << num_matrices << " random matrices (" << n << "x" << n << ")\n";
-    out_file << "delta = " << delta << "\n";
+    cout << "Examining 50 matrices..." << endl;
     for (int i = 1; i <= num_matrices; ++i) {
-        Matrix B = generate_rfr_matrix(n, min_element, max_element, gen);
-        double min_norm_before = get_min_row_norm(B);
-        Matrix reduced_B = lll_reduction(B, delta);
-        double min_norm_after = get_min_row_norm(reduced_B);
+        Matrix B_orig = generate_rfr_matrix(n, min_element, max_element, gen);
         out_file << "Matrix #" << i << "\n";
-        out_file << "Min norm before hte reduction:   " << fixed << setprecision(4) << min_norm_before << "\n";
-        out_file << "Min norm after the reduction: " << min_norm_after << "\n\n";
-        out_file << "Basis matrix:\n";
-        matrix_to_file(out_file, B);
+        out_file << left << setw(8) << "delta"
+            << setw(15) << "Час (мс)"
+            << setw(15) << "К-сть Swap"
+            << setw(20) << "Коеф. Адамара"
+            << setw(15) << "||b_1||\n";
+        out_file << "------------------------------------------\n";
+        for (double delta : deltas) {
+            LLLMetrics res = lll_reduction(B_orig, delta);
+            out_file << left << setw(8) << fixed << setprecision(2) << delta
+                << setw(15) << setprecision(4) << res.execution_time_ms
+                << setw(15) << res.swap_count
+                << setw(20) << setprecision(6) << res.hadamard_coef
+                << setw(15) << setprecision(4) << res.first_vector_norm << "\n";
+        }
         out_file << "\n";
-        out_file << "LLL-reduced basis:\n";
-        matrix_to_file(out_file, reduced_B);
-        out_file << "\n\n";
     }
     out_file.close();
-    cout << "\nResults are in the file lll_50_matrixes.txt" << endl;
-    return 0;
+    cout << "\nResults are in the file lll_50_matrixes_measured.txt" << endl;
 }
