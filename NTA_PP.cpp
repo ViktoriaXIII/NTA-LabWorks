@@ -20,6 +20,14 @@ struct LLLMetrics {
     double first_vector_norm = 0.0;
 };
 
+struct summary {
+    double delta = 0.0;
+    double total_time_ms = 0.0;
+    long long total_swaps = 0;
+    double total_hadamard = 0.0;
+    double total_first_norm = 0.0;
+};
+
 double c_norm(const Vector& v) {
     double sum = 0.0;
     for (double x : v) sum += x * x;
@@ -86,6 +94,7 @@ LLLMetrics lll_reduction(Matrix B, double delta) {
         if (b_star_k_norm2 < (delta - mu[k][k - 1] * mu[k][k - 1]) * b_star_k_minus_1_norm2) {
             // 2.2.1. swap b_{k-1} та b_k
             swap(B[k], B[k - 1]);
+            swap_count++;
             for (int i = k - 1; i < m; ++i) basis_mu(i, B, B_star, mu);
             k = max(k - 1, 1); // 2.2.3. k = max(k - 1, 1)
         }
@@ -161,7 +170,9 @@ int main() {
     const int min_element = -5;
     const int max_element = 5;
     vector<double> deltas = { 0.5, 0.75, 0.90, 0.95, 0.99 };
-    ofstream out_file("lll_50_matrixes_measured.txt");
+    vector<summary> global_summaries(deltas.size());
+    for (size_t i = 0; i < deltas.size(); ++i) global_summaries[i].delta = deltas[i];
+    ofstream out_file("lll_50_matrixes_measured_general.txt");
     if (!out_file.is_open()) {
         cerr << "ERROR!!! Cannot open the file." << endl;
         return 1;
@@ -171,21 +182,44 @@ int main() {
         Matrix B_orig = generate_rfr_matrix(n, min_element, max_element, gen);
         out_file << "Matrix #" << i << "\n";
         out_file << left << setw(8) << "delta"
-            << setw(15) << "Час (мс)"
-            << setw(15) << "К-сть Swap"
-            << setw(20) << "Коеф. Адамара"
+            << setw(15) << "Time (ms)"
+            << setw(15) << "Swaps"
+            << setw(20) << "Hadamar's Coef."
             << setw(15) << "||b_1||\n";
         out_file << "------------------------------------------\n";
-        for (double delta : deltas) {
-            LLLMetrics res = lll_reduction(B_orig, delta);
-            out_file << left << setw(8) << fixed << setprecision(2) << delta
-                << setw(15) << setprecision(4) << res.execution_time_ms
-                << setw(15) << res.swap_count
-                << setw(20) << setprecision(6) << res.hadamard_coef
-                << setw(15) << setprecision(4) << res.first_vector_norm << "\n";
+        for (size_t d = 0; d < deltas.size(); ++d) {
+            LLLMetrics res = lll_reduction(B_orig, deltas[d]);
+            out_file << left << setw(8) << fixed << setprecision(2) << deltas[d]
+                << setw(15) << setprecision(4) << res.execution_time_ms;
+            out_file << defaultfloat << setw(15) << res.swap_count;
+            out_file << scientific << setw(20) << setprecision(6) << res.hadamard_coef;
+            out_file << fixed << setw(15) << setprecision(4) << res.first_vector_norm << "\n";
+            global_summaries[d].total_time_ms += res.execution_time_ms;
+            global_summaries[d].total_swaps += res.swap_count;
+            global_summaries[d].total_hadamard += res.hadamard_coef;
+            global_summaries[d].total_first_norm += res.first_vector_norm;
         }
         out_file << "\n";
     }
     out_file.close();
-    cout << "\nResults are in the file lll_50_matrixes_measured.txt" << endl;
+    cout << "\nResults are in the file lll_50_matrixes_measured_general.txt" << endl;
+    cout << "\n\n";
+    cout << "General summary \n";
+    cout << left << setw(10) << "delta"
+        << setw(18) << "Average Time (ms)"
+        << setw(18) << "Average Swaps"
+        << setw(20) << "Average Hadamar's Coef."
+        << setw(15) << "Average ||b_1||\n";
+    cout << "-----------------------------------------------------------------------------\n";
+    for (const auto& summary : global_summaries) {
+        double avg_time = summary.total_time_ms / num_matrices;
+        double avg_swaps = static_cast<double>(summary.total_swaps) / num_matrices;
+        double avg_hadamard = summary.total_hadamard / num_matrices;
+        double avg_first_norm = summary.total_first_norm / num_matrices;
+        cout << left << setw(10) << fixed << setprecision(2) << summary.delta
+            << setw(18) << setprecision(4) << avg_time;
+        cout << defaultfloat << setw(18) << setprecision(2) << avg_swaps;
+        cout << scientific << setw(22) << setprecision(6) << avg_hadamard;
+        cout << fixed << setw(15) << setprecision(4) << avg_first_norm << "\n";
+    }
 }
