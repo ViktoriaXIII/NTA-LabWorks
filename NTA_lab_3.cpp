@@ -13,7 +13,7 @@ struct FactorBase {
 
 // k = c_1*log(p_1) + c_2*log(p_2) + ... + c_t*log(p_t) (mod n)
 struct Equation {
-    long long k;
+    BigInt k;
     vector<int> coefficients;
 };
 
@@ -46,16 +46,49 @@ FactorBase build_factor_base(double n, double c = 3.38) {
     return { B, S };
 }
 
-bool check_smoothness(long long value, const vector<int>& S, vector<int>& coefficients) {
+bool check_smoothness(BigInt value, const vector<int>& S, vector<int>& coefficients) {
     coefficients.assign(S.size(), 0);
-    long long temp = value;
+    BigInt temp = value;
+    BigInt zero(0);
+    BigInt one(1);
     for (size_t i = 0; i < S.size(); ++i) {
+        BigInt prime_big(S[i]);
         while (temp % S[i] == 0) {
             coefficients[i]++;
-            temp /= S[i];
+            temp = temp / prime_big;
         }
     }
-    return (temp == 1);
+    return (temp == one);
+}
+
+// SLE
+vector<Equation> generate_equations(long long p, BigInt alpha, const vector<int>& S, int extra_equations = 10) {
+    long long n = p - 1; // Z_p*
+    size_t t = S.size();
+    size_t required_equations = t + extra_equations; // t + c equations
+    vector<Equation> equations;
+    BigInt mod_p(p);
+    random_device rd;
+    mt19937_64 gen(rd());
+    uniform_int_distribution<long long> dis(1, n - 1);
+    cout << "Starting the search for smoth numbers. Creating " << required_equations << " equations\n";
+    while (equations.size() < required_equations) {
+        long long k = dis(gen); // k
+        BigInt exp_k(k);
+        BigInt val = alpha.GorMod(k, p); // Обчислюємо alpha^k mod p
+        vector<int> coefficients;
+        if (check_smoothness(val, S, coefficients)) {
+            Equation eq;
+            eq.k = k;
+            eq.coefficients = coefficients;
+            equations.push_back(eq);
+            if (equations.size() % 5 == 0 || equations.size() == required_equations) {
+                cout << "Found " << equations.size() << " / " << required_equations << " equations...\n";
+            }
+        }
+    }
+
+    return equations;
 }
 
 int main()
