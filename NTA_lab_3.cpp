@@ -4,7 +4,6 @@
 #include <random>
 #include <numeric>
 #include "BigInt.hpp"
-#include "CanonForm.hpp"
 using namespace std;
 
 struct FactorBase {
@@ -114,7 +113,7 @@ vector<Equation> generateSLE(long long p, BigInt alpha, const vector<int>& S, in
 }
 
 // Solving SLE with reduction
-vector<long long> solve_sle(const vector<Equation>& equations, long long n, size_t t) {
+vector<long long> solveSLE(const vector<Equation>& equations, long long n, size_t t) {
     size_t num_eq = equations.size();
     // [equations] x [t + 1]
     vector<vector<long long>> mat(num_eq, vector<long long>(t + 1, 0));
@@ -203,6 +202,25 @@ long long log_beta(BigInt beta, BigInt alpha, long long p, const vector<int>& S,
             return log_beta;
         }
     }
+}
+
+long long solve_index_calculus(long long p, BigInt alpha, BigInt beta, double c_const = 3.38, int extra_eq = 15) {
+    cout << "=== INDEX CALCULUS ===\n";
+    cout << "p = " << p << "\n\n";
+    FactorBase base = build_factor_base(static_cast<double>(p), c_const);
+    cout << "B = " << base.B << ". There are " << base.S.size() << " elements in the base\n\n";
+    vector<Equation> equations = generateSLE(p, alpha, base.S, extra_eq);
+    cout << "\n";
+    vector<long long> log_S = solveSLE(equations, p - 1, base.S.size());
+    for (size_t i = 0; i < log_S.size(); ++i) {
+        if (log_S[i] == -1) {
+            cerr << "ERROR!!! Cannot find log for the prime number " << base.S[i] << "\n";
+            return -1;
+        }
+    }
+    long long result = log_beta(beta, alpha, p, base.S, log_S);
+    cout << "log beta = " << result << "\n";
+    return result;
 }
 
 int main()
