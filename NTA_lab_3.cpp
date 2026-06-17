@@ -5,8 +5,10 @@
 #include <numeric>
 #include <omp.h>
 #include <atomic>
+#include <chrono>
 #include "BigInt.hpp"
 using namespace std;
+using namespace chrono;
 
 struct FactorBase {
     double B;
@@ -247,6 +249,7 @@ long long log_beta(BigInt beta, BigInt alpha, long long p, const vector<int>& S,
 }
 
 long long solve_index_calculus(long long p, BigInt alpha, BigInt beta, double c_const = 3.38, int extra_eq = 15, bool use_parallel = false) {
+    auto start_time = high_resolution_clock::now();
     cout << "=== INDEX CALCULUS ===" << (use_parallel ? " Light" : " Direct") << "\n";
     cout << "p = " << p << "\n\n";
     FactorBase base = build_factor_base(static_cast<double>(p), c_const);
@@ -264,6 +267,9 @@ long long solve_index_calculus(long long p, BigInt alpha, BigInt beta, double c_
     }
     long long result = log_beta(beta, alpha, p, base.S, log_S);
     cout << "log beta = " << result << "\n";
+    auto end_time = high_resolution_clock::now();
+    duration<double> elapsed = end_time - start_time;
+    cout << "Time: " << elapsed.count() << " seconds\n";
     return result;
 }
 
