@@ -3,6 +3,8 @@
 #include <cmath>
 #include <random>
 #include <numeric>
+#include <omp.h>
+#include <atomic>
 #include "BigInt.hpp"
 using namespace std;
 
@@ -92,7 +94,7 @@ vector<Equation> generateSLE(long long p, BigInt alpha, const vector<int>& S, in
     random_device rd;
     mt19937_64 gen(rd());
     uniform_int_distribution<long long> dis(1, n - 1);
-    cout << "Starting the search for smoth numbers. Creating " << required_equations << " equations\n";
+    cout << "Starting the search for smooth numbers. Creating " << required_equations << " equations\n";
     while (equations.size() < required_equations) {
         long long k = dis(gen); // k
         BigInt exp_k(k);
@@ -109,6 +111,46 @@ vector<Equation> generateSLE(long long p, BigInt alpha, const vector<int>& S, in
         }
     }
 
+    return equations;
+}
+
+vector<Equation> generateSLE_light(long long p, BigInt alpha, const vector<int>& S, int extra_equations = 10) {
+    long long n = p - 1;
+    size_t t = S.size();
+    size_t required_equations = t + extra_equations;
+    vector<Equation> equations;
+    BigInt mod_p(p);
+    // stop signal
+    atomic<bool> finished(false);
+    cout << "Starting the parallel search for smooth numbers. Creating " << required_equations << " equations\n";
+#pragma omp parallel
+    {
+        int thread_id = omp_get_thread_num();
+        random_device rd;
+        mt19937_64 gen(rd() ^ (static_cast<uint64_t>(thread_id) << 16));
+        uniform_int_distribution<long long> dis(1, n - 1);
+        while (!finished) {
+            long long k = dis(gen);
+            BigInt exp_k(k);
+            BigInt val = alpha.GorMod(exp_k, mod_p);
+            vector<int> coefficients;
+            if (check_smoothness(val, S, coefficients)) {
+#pragma omp critical(vector_update)
+                {
+                    if (equations.size() < required_equations) {
+                        Equation eq;
+                        eq.k = k;
+                        eq.coefficients = coefficients;
+                        equations.push_back(eq);
+                        if (equations.size() % 5 == 0 || equations.size() == required_equations) {
+                            cout << "Thread: " << thread_id << ". Found " << equations.size() << " / " << required_equations << " equations...\n";
+                        }
+                        if (equations.size() == required_equations) finished = true;
+                    }
+                }
+            }
+        }
+    }
     return equations;
 }
 
@@ -204,12 +246,14 @@ long long log_beta(BigInt beta, BigInt alpha, long long p, const vector<int>& S,
     }
 }
 
-long long solve_index_calculus(long long p, BigInt alpha, BigInt beta, double c_const = 3.38, int extra_eq = 15) {
-    cout << "=== INDEX CALCULUS ===\n";
+long long solve_index_calculus(long long p, BigInt alpha, BigInt beta, double c_const = 3.38, int extra_eq = 15, bool use_parallel = false) {
+    cout << "=== INDEX CALCULUS ===" << (use_parallel ? " Light" : " Direct") << "\n";
     cout << "p = " << p << "\n\n";
     FactorBase base = build_factor_base(static_cast<double>(p), c_const);
     cout << "B = " << base.B << ". There are " << base.S.size() << " elements in the base\n\n";
-    vector<Equation> equations = generateSLE(p, alpha, base.S, extra_eq);
+    vector<Equation> equations;
+    if (use_parallel) equations = generateSLE_light(p, alpha, base.S, extra_eq);
+    else equations = generateSLE(p, alpha, base.S, extra_eq);
     cout << "\n";
     vector<long long> log_S = solveSLE(equations, p - 1, base.S.size());
     for (size_t i = 0; i < log_S.size(); ++i) {
